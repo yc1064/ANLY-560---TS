@@ -1,0 +1,611 @@
+---
+title: "ARMA/ARIMA/SARIMA Models"
+echo: false
+---
+
+```{r, message=FALSE, warning=FALSE}
+# Load packages
+library(flipbookr)
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(ggplot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Read datasets
+fc <- read.csv("fossil-fuel-primary-energy.csv")
+oc <- read.csv("oil-consumption-by-country.csv")
+cc <- read.csv("coal-consumption-by-country-terawatt-hours-twh.csv")
+cp <- read.csv("coal-prices.csv")
+co2 <- read.csv("annual-co2-emissions-per-country.csv")
+elc <- read.csv("elec-fossil-nuclear-renewables.csv")
+
+fc1 <- fc %>%
+  filter(Entity == "World")
+
+oc1 <- oc %>%
+  filter(Entity == "World") 
+cc1 <- cc %>%
+  filter(Entity == "World") 
+
+co2_1 <- co2 %>%
+  filter(Entity == "World")
+
+cp1 <- cp %>%
+  filter(Entity == "Asian marker price (BP)")
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Make it to TS
+fc_ts <- ts(fc1$Fossil.fuels..TWh., start = 1965, frequency = 12)
+
+oc_ts <-ts(oc1$Oil.Consumption...TWh, start = 1965, frequency = 12)
+
+cc_ts <-ts(cc1$Coal.Consumption...TWh, start = 1965, frequency = 12)
+
+co2_ts <- ts(co2_1$Annual.CO..emissions, start = 1750)
+
+cp_ts <-ts(cp1$Coal...Prices, start = 2001)
+
+```
+
+# <b>Compare the log plot anf original plot</b>
+
+## <b>The original plot</b>
+
+The plots inclued fossil fuel consumption, oil cunsumption and coal consumption.
+
+```{r, message=FALSE, warning=FALSE}
+#Set space for 3 rows and 1 column.
+par(mfrow=c(3,1))
+
+plot(fc_ts, type='l', main = "Fossil Fuel Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Fossil Fuel Consumption (TWh)")
+plot(oc_ts, type='l', main = "Oil Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Oil Consumption (TWh)")
+plot(cc_ts, type='l', main = "Coal Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Coal Consumption (TWh)")
+```
+
+## <b>The ggplot of log transformation</b>
+
+```{r, message=FALSE, warning=FALSE}
+p1 <- fc1 %>%
+  ggplot(aes(x = Year, y = log(Fossil.fuels..TWh.))) +
+  geom_line() +
+  labs(title = "Fossil Fuel Consumption of World from 1965 to 2021",
+       x = "Date",
+       y = "Fossil Fuel Consumption (TWh)")
+
+ggplotly(p1)
+
+p2 <- oc1 %>%
+  ggplot(aes(x = Year, y = log(Oil.Consumption...TWh))) +
+  geom_line() +
+  labs(title = "Oil Consumption of World from 1965 to 2021",
+       x = "Date",
+       y = "Oil Consumption (TWh)")
+
+ggplotly(p2)
+
+p3 <- cc1 %>%
+  ggplot(aes(x = Year, y = log(Coal.Consumption...TWh))) +
+  geom_line() +
+  labs(title = "Coal Consumption of World from 1965 to 2021",
+       x = "Date",
+       y = "Coal Consumption (TWh)")
+
+ggplotly(p3)
+
+```
+
+In the data of fossil fuel, oil and coal consumption I chose the entity as world. Then, after transforming the data into a time series, the above graph was plotted. From the graph, it is clear that from 1965 to 2021, the consumption of fossil fuel, oil and coal have an **increasing** trend. And they are **not** stationary.
+
+The graphs of log transformation from fossil fuel consumption, oil consumption and coal consumption do not look any different from the original graph.
+
+***
+
+# <b>ACF plots and Augmented Dickey-Fuller Test</b>
+
+## <b>ACF plots</b>
+
+First, plot ACF graphs from fossil fuel consumption, oil cunsumption and coal consumption. Then, determine whether your data are stationary or non-stationary.
+
+```{r, message=FALSE, warning=FALSE}
+require(gridExtra)
+
+g1 <- ggAcf(fc_ts) +
+  ggtitle("ACF Plot for Fossil Fuel Consumption, from 1965")
+
+g2 <- ggAcf(oc_ts) +
+  ggtitle("ACF Plot for Oil Consupmtion, from 1965")
+
+g3 <- ggAcf(cc_ts) +
+  ggtitle("ACF Plot for Coal Consumption, from 1965")
+
+grid.arrange(g1, g2, g3, nrow=3)
+```
+
+## <b>Augmented Dickey-Fuller Test</b>
+
+Using the Augmented Dickey-Fuller Test to check the stationarity.
+
+```{r, message=FALSE, warning=FALSE}
+tseries::adf.test(fc_ts)
+tseries::adf.test(oc_ts)
+tseries::adf.test(cc_ts)
+```
+
+As seen in the ACF plots lag1 is most significant in fossil fuel consumption, oil consumption and coal consumption.
+
+The results for fossil fuel consumption show a p-value of 0.5879, which is greater than 0.05, and the lag order is 3, so we do not have enough evidence to reject the null hypothesis at the 5% significance level, and it is clear that this series is not stationary.
+
+The results for oil depletion show a P-value of 0.03928, which is slightly less than 0.05 with a lag of 3. Therefore, we have evidence to reject the null hypothesis at the 5% level of significance, and it is probably **weakly** stationary.
+
+The result of coal depletion shows a p-value of 0.273, which is greater than 0.05 with a lag of 3. Therefore, we do not have enough evidence to reject the null hypothesis at the 5% level of significance, and it is clear that this series is not stationary.
+
+***
+
+# <b>Difference the Data</b>
+
+## <b>Do first order of second order differencing</b>
+
+Difference the time series data and use 1st order, 2nd order or even go up-to 3rd order differencing until data becomes stationary/weakly stationary.
+
+```{r, message=FALSE, warning=FALSE}
+# Difference the data
+fc_ts %>% diff() %>% ggtsdisplay()
+fc_ts %>% diff() %>% diff() %>% ggtsdisplay()
+fc_ts1 <- fc_ts %>% diff() %>% diff() 
+
+oc_ts %>% diff() %>% ggtsdisplay()
+oc_ts %>% diff() %>% diff() %>% ggtsdisplay()
+oc_ts1 <- oc_ts %>% diff() %>% diff() 
+
+cc_ts %>% diff() %>% ggtsdisplay()
+cc_ts %>% diff() %>% diff() %>% ggtsdisplay()
+cc_ts1 <- cc_ts %>% diff() %>% diff()
+```
+
+In fossil fuel consumption, oil consumption and coal consumption datasets, I compared first order differencing and second order differencing, and from the graph, we can see that the second order differencing is more stationary. 
+
+## <b>Augmented Dickeny-Fuller Test</b>
+
+After difference, use **Augmented Dickeny-Fuller Test** to check if it is stationary.
+
+```{r, message=FALSE, warning=FALSE}
+tseries::adf.test(fc_ts1)
+tseries::adf.test(oc_ts1)
+tseries::adf.test(cc_ts1)
+```
+
+Compare first order differnecing and second order differencing from fossil fuel consumptoin, oil consumption and coal consumption, **second** order differencing looks more stationary.
+
+The results for fossil fuel consumption show a p-value of 0.01, which is less than 0.05, and the lag order is 3, so we have evidence to reject the null hypothesis at the 5% significance level, and it is clear that this series is stationary.
+
+The results for oil consumption show a P-value of 0.01, which is slightly less than 0.05 with a lag of 3. Therefore, we have evidence to reject the null hypothesis at the 5% level of significance, and it is stationary.
+
+The result of coal consumption shows a p-value of 0.01784, which is less than 0.05 with a lag of 3. Therefore, we have evidence to reject the null hypothesis at the 5% level of significance, and it is clear that this series is stationary.
+
+***
+
+# <b>ACF and PACF Plots (differenced data)</b>
+
+Plot the ACF and PACF plots and decide the value of p, d, q and processes in the **ARIMA(p,d,q)** model.
+
+i.e Decide p(from AR model) ,q(from MA model) and d(number of times you differenced).
+
+## <b>Fossil fuel consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+require(gridExtra)
+
+g1 <- ggAcf(fc_ts1) +
+  ggtitle("ACF Plot for Fossil Fuel Consumption, from 1965 (Second order of defferencing)")
+
+g2 <- ggPacf(fc_ts1) +
+  ggtitle("PACF Plot for Fossil Fuel Consumption, from 1965 (Second order of defferencing)")
+
+grid.arrange(g1, g2, ncol=1)
+```
+
+## <b>Oil consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+g1 <- ggAcf(oc_ts1) +
+  ggtitle("ACF Plot for Oil Consumption, from 1965 (Second order of defferencing)")
+
+g2 <- ggPacf(oc_ts1) +
+  ggtitle("PACF Plot for Oil Consumption, from 1965 (Second order of defferencing)")
+
+grid.arrange(g1, g2, ncol=1)
+```
+
+## <b>Coal consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+g1 <- ggAcf(cc_ts1) +
+  ggtitle("ACF Plot for Coal Consumption, from 1965 (Second order of defferencing)")
+
+g2 <- ggPacf(cc_ts1) +
+  ggtitle("PACF Plot for Coal Consumption, from 1965 (Second order of defferencing)")
+
+grid.arrange(g1, g2, ncol=1)
+```
+
+For fossil fuel consumption, I would like to choose d=0,1,2. And from ACF plot, it suggests q=1,2, and from PACF plot, p=1,2.
+
+For oil consumption, I would like to choose d=0,1,2. And from ACF plot, it suggests q=1, and from PACF plot, p=1,2.
+
+For coal consumption, I would like to choose d=0,1,2. And from ACF plot, it suggests q=2, and from PACF plot, p=2.
+
+***
+
+# <b>ARIMA Model</b>
+
+## <b>Fossil fuel consumption</b>
+
+Check for different combinations.
+
+```{r, message=FALSE, warning=FALSE}
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*27),nrow=27)
+
+for (p in 1:3)# p=1,2
+{
+  for(q in 1:3)# q=1,2
+  {
+    for(d in 0:2)# d=1,2 :2
+    {
+      
+      if(p-1+d+q-1<=8)
+      {
+        
+        model<- Arima(fc_ts1,order=c(p-1,d,q-1),include.drift=TRUE) 
+        ls[i,]= c(p-1,d,q-1,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+Because there are several choices for p,d,q, need to select the model with lowest AIC, AICc, BIC.
+ 
+```{r, message=FALSE, warning=FALSE}
+# Find the minimum AIC, BIC combination.
+temp[which.min(temp$AIC),]
+temp[which.min(temp$AICc),]
+temp[which.min(temp$BIC),]
+```
+
+From the result of to select the model with lowest AIC, AICc, BIC, it show the lowest AIC, AICc and BIC are all in ARIMA(2,2,2).
+
+### <b>Diagnostics</b>
+
+```{r, message=FALSE, warning=FALSE}
+model_output <- capture.output(sarima(fc_ts1, 2,2,2))
+```
+
+The ARIMA model of 2,2,2 above shows no trend and no seasonality in the standardized residual plot, but there is a mean centered at 0. The ACF of Residuals is significant. The Q-Q plot shows almost a straight line, but there are 1 or 2 outliers at the head and tail. The Ljung- Box plot shows that the p-values of the lagged values after 6 are higher than 0.05, while the p-values of the lagged values of 5 are lower than 0.05. So, the Ljung Box statistic plot does not show as optimal results as the other plots in the model diagnostics.
+
+### <b>fitted vs. actual plot</b>
+
+```{r, message=FALSE, warning=FALSE}
+## fitted vs. actual plot
+fit=Arima(fc_ts1,order=c(2,2,2),include.drift = TRUE)
+summary(fit)
+
+plot(fc_ts1, col="blue")
+lines(fitted(fit),col="green")
+legend(x = "topleft", legend = c("fc", "fit"), fill = 4:1)
+```
+
+### <b>Equation</b>
+
+$$ x_{t}-0.58x_{t-1}-0.62t_{t-2}=w_{t}-2.0w_{t-1}+1.0w_{t-2} $$
+
+### <b>auro.arima()</b>
+
+Use auto.arima() to fit an ARIMA(p,d,q) for the fossil fuel consumption with second order differencing dataset.
+
+```{r, message=FALSE, warning=FALSE}
+auto.arima(fc_ts1)
+```
+
+The result shows the best model is ARIMA(2,0,0) in auto.arima(). This is difference from above result, and above result is ARIMA(2,2,2) after select the lowest AIC, AICc and BIC.
+
+### <b>Forecast</b>
+
+```{r, message=FALSE, warning=FALSE}
+forecast(fit,10)
+autoplot(forecast(fit))
+```
+
+From the forecast graph, we can see that the fossil fuel consumption next ten years has an upward and downward trend, which is relatively stable.
+
+### <b>The Benchmark Methods</b>
+
+```{r, message=FALSE, warning=FALSE}
+# Compare with benchmark methods
+f1 <- meanf(fc_ts1, h=20) 
+
+checkresiduals(f1)
+
+f2 <- naive(fc_ts1, h=20) 
+
+checkresiduals(f2)
+
+f3 <- rwf(fc_ts1,drift=TRUE, h=20) 
+
+checkresiduals(f3)
+```
+
+The above results show a p-value of 0.1158 for Mean, 0.07763 for the Naive method, and 0.05103 for the Random Walk with Drift method. They are all greater than 0.05.
+
+***
+
+## <b>Oil Consumption</b>
+
+Check for different combinations.
+
+```{r, message=FALSE, warning=FALSE}
+# Check for different combinations
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*18),nrow=18)
+
+for (p in 1:3)# p=1,2
+{
+  for(q in 1:2)# q=1
+  {
+    for(d in 0:2)# d=0,1,2 :2
+    {
+      
+      if(p-1+d+q-1<=8)
+      {
+        
+        model<- Arima(oc_ts1,order=c(p-1,d,q-1),include.drift=TRUE) 
+        ls[i,]= c(p-1,d,q-1,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+Because there are several choices for p,d,q, need to select the model with lowest AIC, AICc, BIC.
+
+```{r, message=FALSE, warning=FALSE}
+# Find the minimum AIC, BIC combination.
+temp[which.min(temp$AIC),]
+temp[which.min(temp$AICc),]
+temp[which.min(temp$BIC),]
+```
+
+From the result of to select the model with lowest AIC, AICc, BIC, it show the lowest AIC, AICc and BIC are all in ARIMA(0,0,1).
+
+### <b>Diagnostics</b>
+
+```{r, message=FALSE, warning=FALSE}
+model_output <- capture.output(sarima(oc_ts1, 0,0,1))
+```
+
+The ARIMA model of 0,0,1 above shows no trend and no seasonality in the standardized residual plot, but there is a mean centered at 0. The ACF of Residuals is significant. The Q-Q plot shows almost a straight line, but there are 1 or 2 outliers at the head and tail. The Ljung- Box plot shows that the p-values of all the lagged values are higher than 0.05. Therefore, the Ljung Box statistic plot does not show as optimal results as the other plots in the model diagnostics.
+
+### <b>fitted vs. actual plot</b>
+
+```{r, message=FALSE, warning=FALSE}
+## fitted vs. actual plot
+fit=Arima(oc_ts1,order=c(0,0,1),include.drift = TRUE)
+summary(fit)
+
+plot(oc_ts1, col="blue")
+lines(fitted(fit),col="green")
+legend(x = "topleft", legend = c("oc", "fit"), fill = 4:1)
+```
+### Equation
+
+$$ x_{t}=w_{t}-w_{t-1} $$
+
+### <b>auro.arima()</b>
+
+Use auto.arima() to fit an ARIMA(p,d,q) for the oil consumption with second order differencing dataset.
+
+```{r, message=FALSE, warning=FALSE}
+auto.arima(oc_ts1)
+```
+
+The result shows the best model is ARIMA(0,0,1) in auto.arima() which is the same with above results.
+
+### <b>Forecast</b>
+
+```{r, message=FALSE, warning=FALSE}
+forecast(fit,20)
+autoplot(forecast(fit))
+```
+
+The forecast graph shows little change in oil consumption next 10 years.
+
+### <b>The Benchmark Methods</b>
+
+```{r, message=FALSE, warning=FALSE}
+# Compare with benchmark methods
+f1 <- meanf(oc_ts1, h=20) 
+
+checkresiduals(f1)
+
+f2 <- naive(oc_ts1, h=20) 
+
+checkresiduals(f2)
+
+f3 <- rwf(oc_ts1,drift=TRUE, h=20) 
+
+checkresiduals(f3)
+```
+
+The above results show a p-value of 0.2355 for Mean, 0.1975 for the Naive method, and 0.1416 for the Random Walk with Drift method. They are all greater than 0.05.
+
+***
+
+## <b>Coal consumption</b>
+
+Check for different combinations.
+
+```{r, message=FALSE, warning=FALSE}
+# Check for different combinations
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*3),nrow=3)
+
+for (p in 3:3)# p=2
+{
+  for(q in 3:3)# q=2
+  {
+    for(d in 0:2)# d=0,1,2 :2
+    {
+      
+      if(p-1+d+q-1<=8)
+      {
+        
+        model<- Arima(cc_ts1,order=c(p-1,d,q-1),include.drift=TRUE) 
+        ls[i,]= c(p-1,d,q-1,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+Because there are several choices for p,d,q, need to select the model with lowest AIC, AICc, BIC.
+
+```{r, message=FALSE, warning=FALSE}
+# Find the minimum AIC, BIC combination.
+temp[which.min(temp$AIC),]
+temp[which.min(temp$AICc),]
+temp[which.min(temp$BIC),]
+```
+
+From the result of to select the model with lowest AIC, AICc, BIC, it show the lowest AIC, AICc and BIC are all in ARIMA(2,2,2).
+
+### <b>Diagnostics</b>
+
+```{r, message=FALSE, warning=FALSE}
+model_output <- capture.output(sarima(cc_ts1, 2,2,2))
+```
+
+The ARIMA model of 2,2,2 above shows no trend and no seasonality in the standardized residual plot, but there is a mean centered at 0. The ACF of Residuals is significant. The Q-Q plot shows almost a straight line, but there are 1 or 2 outliers at the head and tail. The Ljung- Box plot shows that the p-values of the lagged values before 13 are higher than 0.05, while the p-values of the lagged values of from 13 to 16 are lower than 0.05. So, the Ljung Box statistic plot does not show as optimal results as the other plots in the model diagnostics.
+
+### <b>fitted vs. actual plot</b>
+
+```{r, message=FALSE, warning=FALSE}
+## fitted vs. actual plot
+fit=Arima(cc_ts1,order=c(2,2,2),include.drift = TRUE)
+summary(fit)
+
+plot(cc_ts1, col="blue")
+lines(fitted(fit),col="green")
+legend(x = "topleft", legend = c("fc", "fit"), fill = 4:1)
+```
+
+### <b>Equation</b>
+
+$$ x_{t}-0.28x_{t-1}-0.59t_{t-2}=w_{t}-2.0w_{t-1}+1.0w_{t-2} $$
+
+### <b>auto.arima()</b>
+
+Use auto.arima() to fit an ARIMA(p,d,q) for the oil consumption with second order differencing dataset.
+
+```{r, message=FALSE, warning=FALSE}
+auto.arima(cc_ts1)
+```
+
+The result shows the best model is ARIMA(2,0,0) in auto.arima(). This is difference from above result, and above result is ARIMA(2,2,2) after select the lowest AIC, AICc and BIC.
+
+### <b>Forecast</b>
+
+```{r, message=FALSE, warning=FALSE}
+forecast(fit,20)
+autoplot(forecast(fit))
+```
+
+The forecast graph shows an upward and downward trend, which in general is smoother than 2010 to 2020.
+
+### <b>The Benchmark Methods</b>
+
+```{r, message=FALSE, warning=FALSE}
+# Compare with benchmark methods
+f1 <- meanf(cc_ts1, h=20) 
+
+checkresiduals(f1)
+
+f2 <- naive(cc_ts1, h=20) 
+
+checkresiduals(f2)
+
+f3 <- rwf(cc_ts1,drift=TRUE, h=20) 
+
+checkresiduals(f3)
+```
+
+The above results show a p-value of 0.002833 for Mean, 0.003755 for the Naive method, and 0.002052 for the Random Walk with Drift method. They are all less than 0.05.
+
+***
+
+## <b>Code</b>
+
+If you want to see the code please click <a href="https://yutaochen.georgetown.domains/ANLY560/models.qmd"> <b>Here</b></a>
+
+
+
+
+
+
+
+

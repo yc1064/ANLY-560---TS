@@ -1,0 +1,263 @@
+---
+title: "Exploratory Data Analysis"
+echo: false
+---
+
+![](images.jpg){width="80%"}
+
+```{r, message=FALSE, warning=FALSE}
+# Load packages
+library(flipbookr)
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(ggplot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Read datasets
+fc <- read.csv("fossil-fuel-primary-energy.csv")
+oc <- read.csv("oil-consumption-by-country.csv")
+cc <- read.csv("coal-consumption-by-country-terawatt-hours-twh.csv")
+cp <- read.csv("coal-prices.csv")
+co2 <- read.csv("annual-co2-emissions-per-country.csv")
+elc <- read.csv("elec-fossil-nuclear-renewables.csv")
+
+fc1 <- fc %>%
+  filter(Entity == "World")
+
+oc1 <- oc %>%
+  filter(Entity == "World") 
+cc1 <- cc %>%
+  filter(Entity == "World") 
+
+co2_1 <- co2 %>%
+  filter(Entity == "World")
+
+cp1 <- cp %>%
+  filter(Entity == "Asian marker price (BP)")
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Make it to TS
+fc_ts <- ts(fc1$Fossil.fuels..TWh., start = 1965)
+
+oc_ts <-ts(oc1$Oil.Consumption...TWh, start = 1965)
+
+cc_ts <-ts(cc1$Coal.Consumption...TWh, start = 1965)
+
+co2_ts <- ts(co2_1$Annual.CO..emissions, start = 1750)
+
+cp_ts <-ts(cp1$Coal...Prices, start = 2001)
+
+```
+
+## <b>Exploratory Data Analysis</b>
+
+### <b>Plot fossil fuel consumption, oil consumption and coal consumption of **World** from 1965 to 2021.</b>
+
+```{r, message=FALSE, warning=FALSE}
+#Set space for 3 rows and 1 column.
+par(mfrow=c(3,1))
+
+plot(fc_ts, type='l', main = "Fossil Fuel Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Fossil Fuel Consumption (TWh)")
+plot(oc_ts, type='l', main = "Oil Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Oil Consumption (TWh)")
+plot(cc_ts, type='l', main = "Coal Consumption of World from 1965 to 2021",
+     xlab = "Year", ylab = "Coal Consumption (TWh)")
+```
+
+In the data of fossil fuel, oil and coal consumption I chose the entity as world. Then, after transforming the data into a time series, the above graph was plotted. From the graph, it is clear that from 1965 to 2021, the consumption of fossil fuel, oil and coal have an **increasing** trend. And they are **not** stationary.
+
+------------------------------------------------------------------------
+
+### <b>Make lag plots for fossil fuel, oil and coal consumption data sets</b>
+
+```{r, message=FALSE, warning=FALSE}
+gglagplot(fc_ts, do.lines=FALSE) +
+  xlab("Lags") +
+  ylab("Yt") +
+  ggtitle("Plot for Fossil Fuel Comsuption, from 1965")
+
+gglagplot(oc_ts, do.lines=FALSE) +
+  xlab("Lags") +
+  ylab("Yt") +
+  ggtitle("Plot for Oil Comsuption, from 1965")
+
+gglagplot(cc_ts, do.lines=FALSE) +
+  xlab("Lags") +
+  ylab("Yt") +
+  ggtitle("Plot for Coal Comsuption, from 1965")
+```
+
+From the lag plots of fossil fuel, oil and coal consumption, we can see that there is a correlation at lag1. However, all other lag plots have a clear move away from the mid-line.
+
+------------------------------------------------------------------------
+
+### <b>Make ACF and PACF plots for fossil fuel, oil and coal consumption data sets</b>
+
+<b>For fossil fuel consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+require(gridExtra)
+
+g1 <- ggAcf(fc_ts) +
+  ggtitle("ACF Plot for Fossil Fuel Comsuption, from 1965")
+
+g2 <- ggPacf(fc_ts) +
+  ggtitle("PACF Plot for Fossil Fuel Comsuption, from 1965")
+
+grid.arrange(g1, g2,nrow=2)
+
+```
+
+As seen in the ACF and PACF plots, lag1 from both plots is significant.
+
+<b>For oil consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+require(gridExtra)
+
+g1 <- ggAcf(oc_ts) +
+  ggtitle("ACF Plot for Oil Comsuption, from 1965")
+
+g2 <- ggPacf(oc_ts) +
+  ggtitle("PACF Plot for Oil Comsuption, from 1965")
+
+grid.arrange(g1, g2,nrow=2)
+
+```
+
+As seen in the ACF and PACF plots, lag1 from both plots is significant.
+
+<b>For coal consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+require(gridExtra)
+
+g1 <- ggAcf(cc_ts) +
+  ggtitle("ACF Plot for Coal Comsuption, from 1965")
+
+g2 <- ggPacf(cc_ts) +
+  ggtitle("PACF Plot for Coal Comsuption, from 1965")
+
+grid.arrange(g1, g2,nrow=2)
+
+```
+
+As seen in the ACF and PACF plots, lag1 from both plots is significant.
+
+***
+
+### <b>Do augmented dickey-fuller test for fossil fuel, oil and coal consumption</b>
+
+```{r, message=FALSE, warning=FALSE}
+tseries::adf.test(fc_ts)
+tseries::adf.test(oc_ts)
+tseries::adf.test(cc_ts)
+```
+
+The results for fossil fuel consumption show a p-value of 0.5879, which is greater than 0.05, and the lag order is 3, so we do not have enough evidence to reject the null hypothesis at the 5% significance level, and it is clear that this series is not stationary.
+
+The results for oil depletion show a P-value of 0.03928, which is slightly less than 0.05 with a lag of 3. Therefore, we have evidence to reject the null hypothesis at the 5% level of significance, and it is probably **weakly** stationary.
+
+The result of coal depletion shows a p-value of 0.273, which is greater than 0.05 with a lag of 3. Therefore, we do not have enough evidence to reject the null hypothesis at the 5% level of significance, and it is clear that this series is not stationary.
+
+```{r, message=FALSE, warning=FALSE}
+autoplot(fc_ts, series="Data") +
+  autolayer(ma(fc_ts,2), series="2-MA") +
+  autolayer(ma(fc_ts,15), series="15-MA") +
+  autolayer(ma(fc_ts,50), series="50-MA") +
+  xlab("Year") + ylab("Fossil Fuel Consumption (TWh)") +
+  ggtitle("Fossil Fuel Consumption of World from 1965 to 2021") +
+  scale_colour_manual(values=c("Data"="grey50","2-MA"="red","15-MA"="blue", "50-MA"="green"),
+                      breaks=c("Data","2-MA", "15-MA", "50-MA"))
+```
+
+------------------------------------------------------------------------
+
+### <b>Do detrend and differene for carbon dioxide (CO2) emissions and plot</b>
+
+```{r, message=FALSE, warning=FALSE}
+fit = lm(co2_ts~time(co2_ts), na.action=NULL) 
+
+y=co2_ts
+x=time(co2_ts)
+DD<-data.frame(x,y)
+ggp <- ggplot(DD, aes(x, y)) +           
+  geom_line()
+
+ggp +                                     
+  stat_smooth(method = "lm",
+              formula = y ~ x,
+              geom = "smooth") +
+  ggtitle("Carbon Dioxide (CO2) Emissions of World") +
+  xlab("Year") +
+  ylab("Annual CO2 Emissions")
+
+co2_diff <- diff(co2_ts)
+
+# Plot the original plots
+plot1<-autoplot(resid(fit), main="Detrended") 
+plot2<-autoplot(co2_diff, main="First difference") 
+
+# Show plots 
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+From the plot, there is a significant increase in annual carbon dioxide (CO2) emissions after 1950. A smooth line was added to the ggplot, and this line also shows an upward trend from the graph. Also, I think there is a weakly stationary can be seen in the first difference after 1900.
+
+<b>Plot ACF and PACF for carbon dioxide (CO2) emissions</b>
+
+```{r, message=FALSE, warning=FALSE}
+# Plot ACF plots
+plot1 <- ggAcf(co2_ts, main="Original Data")
+plot2 <- ggAcf(resid(fit), main="Detrended data") 
+plot3 <- ggAcf(co2_diff, main="First differenced data")
+
+# Show plots
+grid.arrange(plot1, plot2, plot3,nrow=3)
+
+# Plot PACF plots
+plot1 <- ggPacf(co2_ts, main="Original Data")
+plot2 <- ggPacf(resid(fit), main="Detrended data") 
+plot3 <- ggPacf(co2_diff, main="First differenced data")
+
+# Show plots
+grid.arrange(plot1, plot2, plot3,nrow=3)
+```
+
+The ACF plots of the original data and the detrended data ACF plots look very similar, where lag1 is the most significant. However, lag7 is the most significant in the first differenced data ACF plot.
+
+<b>Moving Average Smoothing for carbon dioxide (CO2) emissions</b>
+
+```{r, message=FALSE, warning=FALSE}
+autoplot(co2_ts, series="Data") +
+  autolayer(ma(co2_ts,5), series="5-MA") +
+  autolayer(ma(co2_ts,30), series="30-MA") +
+  autolayer(ma(co2_ts,100), series="100-MA") +
+  xlab("Year") + ylab("Carbon dioxide (CO2) emissions") +
+  ggtitle("Carbon Dioxide (CO2) Emissions (From 1949 to 2021)") +
+  scale_colour_manual(values=c("Data"="grey50","5-MA"="red","30-MA"="blue", "100-MA"="green"),
+                      breaks=c("Data","5-MA", "30-MA", "100-MA"))
+```
+
+The moving average smoothing was plotted for three separate windows - 5 days, 30 days, and 100 days - on the original time series. We can see that the 5-MA is closer to the original data and the 100-MA line is shorter and smoother.
+
+------------------------------------------------------------------------
+
+## <b>Code</b>
+
+If you want to see the code please click <a href="https://yutaochen.georgetown.domains/ANLY560/eda.qmd"> <b>Here</b></a>

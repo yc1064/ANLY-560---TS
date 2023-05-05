@@ -1,0 +1,187 @@
+---
+title: "HW5"
+author: "Yutao Chen"
+date: "2023-04-16"
+output: html_document
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(ggplot2)
+```
+
+
+```{r}
+library('quantmod')
+getSymbols("BP", from="1965-01-01", src="yahoo")
+
+head(BP,20)
+
+head(BP.close<- Ad(BP),na.action = na.omit)
+```
+
+```{r}
+# Candlestick plot for TALS
+chartSeries(BP, type = "candlesticks", theme = 'white')
+
+# Plot the returns
+returns = diff(log(BP.close))
+chartSeries(returns, theme = 'white')
+```
+
+```{r}
+# ACF and PACF Plots
+acf(returns, na.action = na.pass)
+pacf(returns, na.action = na.pass)
+```
+
+```{r}
+# Differencing the original series
+
+diff.BP = diff(BP.close)
+
+# Plot differences of original series
+plot(diff.BP,type='l',main='Difference BP')
+
+# Take log of original series and plot the log price
+log.BP=log(BP.close)
+plot(log.BP,type='l',main='Log BP')
+
+# Differencing log price and plot
+difflog.BP=diff(log.BP)
+plot(difflog.BP,type='l',main='Difference Log Tesla')
+```
+
+```{r}
+acf.BP=acf(log.BP,main='ACF of Log Transformed BP Prices',lag.max=100)
+
+pacf.BP=pacf(log.BP,main='PACF of Log Transformed BP Prices',lag.max=100,ylim=c(-0.5,1))
+
+```
+
+```{r}
+acf.BP=acf(difflog.BP,main='ACF of Differencing Log Transformed BP Prices',na.action=na.pass)
+
+pacf.BP=pacf(difflog.BP,main='PACF of Differencing Log Transformed BP Prices',na.action=na.pass)
+
+```
+
+```{r}
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*18),nrow=18) # roughly nrow = 3x4x2
+
+
+for (p in 1:3)# p=1,2,
+{
+  for(q in 1:3)# q=1,2,
+  {
+    for(d in 0:1)# 
+    {
+      
+      if(p-1+d+q-1<=8)
+      {
+        
+        model<- Arima(log.BP,order=c(p-1,d,q-1),include.drift=TRUE) 
+        ls[i,]= c(p-1,d,q-1,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+```{r}
+temp[which.min(temp$AIC),]
+temp[which.min(temp$BIC),]
+temp[which.min(temp$AICc),]
+```
+
+```{r}
+BP.fit=auto.arima(log.BP)
+summary(BP.fit)
+```
+
+```{r}
+sarima(log.BP,0,1,2)
+```
+
+```{r}
+arima.fit<-Arima(log.BP,order=c(0,1,2),include.drift = TRUE)
+arima.res<-arima.fit$residuals
+
+acf(arima.res^2)
+pacf(arima.res^2)
+
+```
+
+```{r, warning=FALSE, message=FALSE}
+library("fGarch")
+
+model <- list() ## set counter
+cc <- 1
+for (p in 1:7) {
+  for (q in 1:7) {
+  
+model[[cc]] <- garch(arima.res,order=c(q,p),trace=F)
+cc <- cc + 1
+}
+} 
+
+## get AIC values for model evaluation
+GARCH_AIC <- sapply(model, AIC) ## model with lowest AIC is the best
+which(GARCH_AIC == min(GARCH_AIC))
+
+model[[which(GARCH_AIC == min(GARCH_AIC))]]
+summary(garchFit(~garch(1,1), arima.res,trace = F)) 
+```
+
+```{r}
+summary(arima.fit<-Arima(log.BP,order=c(0,1,2),include.drift = TRUE))
+summary(final.fit <- garchFit(~garch(1,1), arima.res,trace = F)) 
+
+```
+
+$$x_t=  0.0004+x_{t-1}+z_t$$
+
+$$z_t=\sigma_t \epsilon_t$$
+
+$$\sigma_t = 0.0000044+0.043 z_{t-1}+0.943 \sigma_{t-1}$$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
